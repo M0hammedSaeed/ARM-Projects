@@ -1,0 +1,250 @@
+/**************************************************************************************
+ *  [File Name]	 : RCC_program.c
+ *	[Version]	 : V01
+ *  [Author]	 : Mohamed Saeed
+ **************************************************************************************/
+
+#include "STD_TYPES.h"
+#include "BIT_MATH.h"
+
+#include "RCC_interface.h"
+#include "RCC_private.h"
+#include "RCC_config.h"
+
+void MRCC_voidInitSysClock(void)
+{
+	/* choose system clock from (HSI - HSE crystal - HSE RC- PLL) */
+#if MRCC_SYS_CLOCK == MRCC_HSI
+	SET_BIT(MRCC_CR_REG, MRCC_HSI_ON);			 /* Enable HSI */
+	while(!(MRCC_CR_REG & (1 << MRCC_HSI_RDY))); /* wait for the Internal clock be stable*/
+	CLR_BIT(MRCC_CFGR_REG, MRCC_SW0);			 /* HSI selected as system clock */
+	CLR_BIT(MRCC_CFGR_REG, MRCC_SW1);
+
+#elif MRCC_SYS_CLOCK == MRCC_HSE_CRYSTAL
+	SET_BIT(MRCC_CR_REG, MRCC_HSE_ON);			 /* Enable HSE with no bypass */
+	while(!(MRCC_CR_REG & (1 << MRCC_HSE_RDY))); /* wait for the External clock be stable  */
+	CLR_BIT(MRCC_CR_REG, MRCC_HSE_BYP);			 /* Disable bypass */
+	SET_BIT(MRCC_CFGR_REG, MRCC_SW0);			 /* HSE selected as system clock */
+	CLR_BIT(MRCC_CFGR_REG, MRCC_SW1);
+
+#elif MRCC_SYS_CLOCK == MRCC_HSE_RC
+	SET_BIT(MRCC_CR_REG, MRCC_HSE_ON);			 /* Enable HSE with bypass */
+	while(!(MRCC_CR_REG & (1 << MRCC_HSE_RDY))); /* wait for the External clock be stable */
+	SET_BIT(MRCC_CR_REG, MRCC_HSE_BYP);			 /* Enable bypass */
+	SET_BIT(MRCC_CFGR_REG, MRCC_SW0);			 /* HSE selected as system clock */
+	CLR_BIT(MRCC_CFGR_REG, MRCC_SW1);
+
+#elif MRCC_SYS_CLOCK == MRCC_PLL
+	MRCC_CFGR_REG &= ~(15 << MRMCC_PLL_MUL0);	 /* clear the four bits */
+	MRCC_CFGR_REG |= ((MRCC_PLL_MULTIBLE - 1) << MRMCC_PLL_MUL0); /* load the new multiplication value */
+
+	#if MRCC_PLL_SOURCE == MRCC_PLL_HSI_BY2
+		SET_BIT(MRCC_CR_REG, MRCC_HSI_ON);		/* Enable HSI */
+		CLR_BIT(MRCC_CFGR_REG, MRCC_PLL_SRC);	/* HSI selected as PLL source */
+		
+	#elif MRCC_PLL_SOURCE == MRCC_PLL_HSE
+		SET_BIT(MRCC_CR_REG, MRCC_HSE_ON);		/* Enable HSE */
+		SET_BIT(MRCC_CFGR_REG, MRCC_PLL_SRC);	/* HSE selected as PLL source */
+		
+	#elif MRCC_PLL_SOURCE == MRCC_PLL_HSE_BY2
+		SET_BIT(MRCC_CR_REG, MRCC_HSE_ON);		/* Enable HSE */
+		SET_BIT(MRCC_CFGR_REG, MRCC_PLL_SRC);	/* HSE selected as PLL source */
+		SET_BIT(MRCC_CFGR_REG, MRCC_PLL_XTPRE); /* Selects HSE/2  */
+	#else
+		#error ("Wrong Choice of RCC PLL Source Type")
+	#endif
+
+	while(!(MRCC_CR_REG & (1 << MRCC_PLL_RDY))); /* wait for the External clock be stable */
+	SET_BIT(MRCC_CR_REG, MRCC_PLL_ON);			 /* Enable PLL */
+	CLR_BIT(MRCC_CFGR_REG, MRCC_SW0);			 /* PLL selected as system clock */
+	SET_BIT(MRCC_CFGR_REG, MRCC_SW1);
+
+#else
+	#error ("Wrong Choice of RCC Clock Type")
+	
+#endif
+
+
+	/* choosing output on MCO */
+#if MRCC_MCO_PIN == NO_CLOCK
+	CLR_BIT(MRCC_CFGR_REG, MRCC_MCO_2);
+
+#elif MRCC_MCO_PIN == HSI_CLOCK
+	SET_BIT(MRCC_CR_REG, MRCC_HSI_ON);	/* Enable HSI */
+	SET_BIT(MRCC_CFGR_REG, MRCC_MCO_0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_MCO_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_MCO_2);
+
+#elif MRCC_MCO_PIN == HSE_CLOCK
+	SET_BIT(MRCC_CR_REG, MRCC_HSE_ON);	/* Enable HSE */
+	CLR_BIT(MRCC_CFGR_REG, MRCC_MCO_0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_MCO_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_MCO_2);
+
+#elif MRCC_MCO_PIN == PLL_CLOCK
+	SET_BIT(MRCC_CFGR_REG, MRCC_MCO_0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_MCO_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_MCO_2);
+
+#elif MRCC_MCO_PIN == SYSTEM_CLOCK
+	CLR_BIT(MRCC_CFGR_REG, MRCC_MCO_0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_MCO_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_MCO_2);
+#endif
+
+
+	/* To Enable or Disable Clock Security System  */
+#if MRCC_CLOCK_SECURITY_SYSTEM_ON == ENABLE
+	SET_BIT(MRCC_CR_REG, MRCC_CSS_ON);
+#elif MRCC_CLOCK_SECURITY_SYSTEM_ON == DISABLE
+	CLR_BIT(MRCC_CR_REG, MRCC_CSS_ON);
+#endif
+
+
+	/* Selecting a Prescaler for the ADC */
+#if MRCC_ADC_PRESCALER == MRCC_PRESCALER_2
+	CLR_BIT(MRCC_CFGR_REG, MRCC_ADCPRE0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_ADCPRE1);
+#elif MRCC_ADC_PRESCALER == MRCC_PRESCALER_4
+	SET_BIT(MRCC_CFGR_REG, MRCC_ADCPRE0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_ADCPRE1);
+#elif MRCC_ADC_PRESCALER == MRCC_PRESCALER_6
+	CLR_BIT(MRCC_CFGR_REG, MRCC_ADCPRE0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_ADCPRE1);
+#elif MRCC_ADC_PRESCALER == MRCC_PRESCALER_8
+	SET_BIT(MRCC_CFGR_REG, MRCC_ADCPRE0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_ADCPRE1);
+#else
+	#error("Wrong Choice of Prescaler for the ADC")
+#endif
+
+
+	/* Selecting a Prescaler for the APB2 */
+#if MRCC_APB2_PRESCALER == MRCC_PRESCALER_0
+	CLR_BIT(MRCC_CFGR_REG, MRCC_PPRE2_2);
+#elif MRCC_APB2_PRESCALER == MRCC_PRESCALER_2
+	CLR_BIT(MRCC_CFGR_REG, MRCC_PPRE2_0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_PPRE2_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE2_2);
+#elif MRCC_APB2_PRESCALER == MRCC_PRESCALER_4
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE2_0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_PPRE2_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE2_2);
+#elif MRCC_APB2_PRESCALER == MRCC_PRESCALER_8
+	CLR_BIT(MRCC_CFGR_REG, MRCC_PPRE2_0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE2_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE2_2);
+#elif MRCC_APB2_PRESCALER == MRCC_PRESCALER_16
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE2_0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE2_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE2_2);
+#else
+	#error("Wrong Choice of Prescaler for the APB2")
+#endif
+
+
+	/* Selecting a Prescaler for the APB1 */
+#if MRCC_APB1_PRESCALER == MRCC_PRESCALER_0
+	CLR_BIT(MRCC_CFGR_REG, MRCC_PPRE1_2);
+#elif MRCC_APB1_PRESCALER == MRCC_PRESCALER_2
+	CLR_BIT(MRCC_CFGR_REG, MRCC_PPRE1_0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_PPRE1_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE1_2);
+#elif MRCC_APB1_PRESCALER == MRCC_PRESCALER_4
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE1_0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_PPRE1_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE1_2);
+#elif MRCC_APB1_PRESCALER == MRCC_PRESCALER_8
+	CLR_BIT(MRCC_CFGR_REG, MRCC_PPRE1_0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE1_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE1_2);
+#elif MRCC_APB1_PRESCALER == MRCC_PRESCALER_16
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE1_0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE1_1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_PPRE1_2);
+#else
+	#error("Wrong Choice of Prescaler for the APB1")
+#endif
+
+
+	/* Selecting a Prescaler for the AHB */
+#if MRCC_AHB_PRESCALER == MRCC_PRESCALER_0
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE3);
+#elif MRCC_AHB_PRESCALER == MRCC_PRESCALER_2
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE1);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE2);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE3);
+#elif MRCC_AHB_PRESCALER == MRCC_PRESCALER_4
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE1);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE2);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE3);
+#elif MRCC_AHB_PRESCALER == MRCC_PRESCALER_8
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE1);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE2);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE3);
+#elif MRCC_AHB_PRESCALER == MRCC_PRESCALER_16
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE1);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE2);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE3);
+#elif MRCC_AHB_PRESCALER == MRCC_PRESCALER_64
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE2);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE3);
+#elif MRCC_AHB_PRESCALER == MRCC_PRESCALER_128
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE0);
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE2);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE3);
+#elif MRCC_AHB_PRESCALER == MRCC_PRESCALER_256
+	CLR_BIT(MRCC_CFGR_REG, MRCC_HPRE0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE2);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE3);
+#elif MRCC_AHB_PRESCALER == MRCC_PRESCALER_512
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE0);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE1);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE2);
+	SET_BIT(MRCC_CFGR_REG, MRCC_HPRE3);
+#else
+	#error("Wrong Choice of Prescaler for the AHB")
+#endif
+}
+
+void MRCC_voidEnableClock(u8 Copy_u8BusId, u8 Copy_u8PeripheralId)
+{
+	if(Copy_u8PeripheralId <= 31)
+	{
+		switch(Copy_u8BusId)
+		{
+			case MRCC_AHB : SET_BIT(MRCC_AHBENR_REG , Copy_u8PeripheralId);	break;
+			case MRCC_APB1: SET_BIT(MRCC_APB1ENR_REG, Copy_u8PeripheralId);	break;
+			case MRCC_APB2: SET_BIT(MRCC_APB2ENR_REG, Copy_u8PeripheralId);	break;
+		}
+	}
+	else
+	{
+		/* Return Error */
+	}
+}
+
+void MRCC_voidDisableClock(u8 Copy_u8BusId, u8 Copy_u8PeripheralId)
+{
+	if(Copy_u8PeripheralId <= 31)
+	{
+		switch(Copy_u8BusId)
+		{
+			case MRCC_AHB : CLR_BIT(MRCC_AHBENR_REG ,Copy_u8PeripheralId); break;
+			case MRCC_APB1: CLR_BIT(MRCC_APB1ENR_REG,Copy_u8PeripheralId); break;
+			case MRCC_APB2: CLR_BIT(MRCC_APB2ENR_REG,Copy_u8PeripheralId); break;
+		}
+	}
+	else
+	{
+		/* Return Error */
+	}
+}
